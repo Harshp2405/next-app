@@ -1,6 +1,8 @@
 import { PrismaClient } from '@/prisma'
 import Link from 'next/link'
 import React from 'react'
+import DeleteButton from './[taskid]/deletebutton'
+import { revalidatePath } from 'next/cache'
 
 
 const TaskUser = async () =>  {
@@ -9,6 +11,37 @@ const TaskUser = async () =>  {
     // const data = await prisma.users.findMany()
     const data = await prisma.users.findMany({ include: { tasks:true}})
     console.log(data)
+
+
+  async function deleteUser(id) {
+    'use server'
+    const prisma = new PrismaClient()
+
+    try {
+      // Step 1: Delete all tasks associated with the id
+      const tasksDeleted = await prisma.tasks.deleteMany({
+        where: { UserId: id },
+      })
+
+      console.log(`Deleted ${tasksDeleted.count} tasks for id ${id}`)
+
+      // Step 2: Delete the user after tasks have been deleted
+      const userDeleted = await prisma.users.delete({
+        where: { id: id },
+      })
+
+      console.log(`Deleted user with id ${id}`)
+      console.log(`User Delete`, userDeleted)
+
+      // Optionally, trigger revalidation
+      revalidatePath('/taskuser')
+    } catch (error) {
+      console.error('Error deleting tasks and user:', error)
+    } finally {
+      await prisma.$disconnect()
+    }
+  }
+
   return (
     <div className="p-6">
       <div className="flex flex-wrap gap-4 mb-6">
@@ -46,6 +79,11 @@ const TaskUser = async () =>  {
               >
                 ➤ View Details
               </Link>
+              <DeleteButton
+                id={d.id}
+                fnToDelete={deleteUser}
+                className="text-sm px-4 py-1 rounded bg-red-500 text-white hover:bg-red-600 transition"
+              />
             </div>
           ))}
         </div>
